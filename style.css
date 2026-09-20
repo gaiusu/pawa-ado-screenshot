@@ -6,5 +6,5 @@ header{gap:20px}.brand{margin:0;letter-spacing:normal;line-height:1.5;min-width:
 .file-hint{font-size:12px;color:var(--muted);line-height:1.8}
 @media(max-width:850px){header{align-items:flex-start;flex-direction:column;gap:8px}.brand{font-size:18px}.private{margin-left:38px}.drop{padding:16px}.drop h2{margin-top:0}.drop p{margin-top:8px;margin-bottom:12px}main{padding-top:22px}}
 .intro>p:first-child{color:var(--text);line-height:1.8;margin:0}.intro>.site-description{margin-top:14px;color:var(--muted);font-size:14px;line-height:1.9;max-width:920px}
-.x-button{background:#05070b;color:#fff;border-color:#6a778b;font-weight:700}.x-button:hover{background:#252a32}
-.x-sharing{margin-top:22px;border-top:1px solid var(--line);padding-top:20px}.x-sharing h3{font-size:18px;margin:0 0 16px}.x-sharing ol{padding-left:24px;margin:16px 0 0}.x-sharing li{padding-left:4px;margin-top:12px}.x-sharing li p,.x-sharing #x-native p{margin:8px 0 0;line-height:1.8}.secondary-link{display:inline-flex;align-items:center;flex-wrap:wrap;min-height:44px;color:var(--accent);font-weight:650;text-underline-offset:4px}.new-tab{font-size:13px;font-weight:400}.x-sharing .share-status{color:#ffb4a9;margin:14px 0 0}.share-status:empty{display:none}#share-x-native{width:100%;text-align:center}
+.save-area .share-status{color:#ffb4a9;margin:14px 0 0}.share-status:empty{display:none}
+#drop-before,#drop-after,#combine{scroll-margin-block:16px}

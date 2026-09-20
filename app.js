@@ -4,8 +4,13 @@ let images=[null,null],canvases=[null,null],info=null,resultBlob=null,resultURL=
 const slots=['before','after'];
 const selectedCount=()=>images.filter(Boolean).length;
 function status(text,type=''){ $('status').textContent=text;$('status').className='status '+type; }
-function clearResult(){revision++;info=null;resultBlob=null;if(resultURL)URL.revokeObjectURL(resultURL);resultURL=null;$('preview').removeAttribute('src');$('download').removeAttribute('href');$('x-download').removeAttribute('href');$('x-sharing').hidden=true;$('share-x').setAttribute('aria-expanded','false');$('share-status').textContent='';$('preview-wrap').hidden=true;$('save-area').hidden=true;$('adjust').hidden=true;$('empty').hidden=false;$('dimensions').textContent='PNG';}
+function clearResult(){revision++;info=null;resultBlob=null;if(resultURL)URL.revokeObjectURL(resultURL);resultURL=null;$('preview').removeAttribute('src');$('download').removeAttribute('href');$('share-status').textContent='';$('preview-wrap').hidden=true;$('save-area').hidden=true;$('adjust').hidden=true;$('empty').hidden=false;$('dimensions').textContent='PNG';}
 function setBusy(b){busy=b;document.body.classList.toggle('busy',b);$('combine').disabled=b||selectedCount()!==2;slots.forEach(slot=>$('file-'+slot).disabled=b);$('mode').disabled=b;}
+function scrollToNextStep(index){
+ if(!matchMedia('(max-width:850px)').matches)return;
+ const target=index===0?'drop-after':images[0]?'combine':'drop-before';
+ $(target).scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth',block:target==='combine'?'center':'start'});
+}
 async function loadFile(file){
  if(file.size>20*1024*1024)throw Error('1枚20MB以下の画像を選んでください。');
  if(!/^image\/(png|jpeg|webp)$/.test(file.type))throw Error('PNG・JPEG・WebPの画像を選んでください。');
@@ -20,17 +25,18 @@ async function selectFile(index,files){
  if(files.length!==1){status('それぞれの枠に、画像を1枚だけ選んでください。','error');return;}
  clearResult();
  setBusy(true);status('画像を読み込んでいます…');
- let loaded=null;
+ let loaded=null,selected=false;
  try{
   loaded=await loadFile(files[0]);const canvas=normalize(loaded.img);
   const slot=slots[index],im=document.createElement('img'),name=document.createElement('p');
-  im.src=loaded.url;im.alt=index===0?'選択したスクロール前の画像':'選択したスクロール後の画像';name.textContent=loaded.name;
+  im.src=loaded.url;im.width=loaded.img.naturalWidth;im.height=loaded.img.naturalHeight;im.alt=index===0?'選択したスクロール前の画像':'選択したスクロール後の画像';name.textContent=loaded.name;
   const previous=images[index];images[index]=loaded;canvases[index]=canvas;
   $('thumb-'+slot).replaceChildren(im,name);$('thumb-'+slot).hidden=false;$('label-'+slot).textContent='画像を選び直す';
   if(previous)URL.revokeObjectURL(previous.url);
+  selected=true;
   status(selectedCount()===2?'前後の画像がそろいました。「1枚につなぐ」を押してください。':`続けて、スクロール${index===0?'後':'前'}の画像を選んでください。`);
  }catch(e){if(loaded)URL.revokeObjectURL(loaded.url);status((e.message||'画像を読み込めませんでした。選び直してください。')+(images[index]?' 選択済みの画像は残しています。':''),'error');}
- finally{setBusy(false);$('file-'+slots[index]).value='';}
+ finally{setBusy(false);$('file-'+slots[index]).value='';if(selected)requestAnimationFrame(()=>scrollToNextStep(index));}
 }
 async function render(){
  if(!info)return;const current=++revision;
@@ -40,13 +46,12 @@ async function render(){
  if(current!==revision)return;if(!blob)throw Error('画像を保存用に変換できませんでした。');
  if(resultURL)URL.revokeObjectURL(resultURL);resultBlob=blob;resultURL=URL.createObjectURL(blob);
  $('preview').src=resultURL;$('download').href=resultURL;$('download').download=profiles[info.mode].name+'_'+new Date().toISOString().slice(0,10)+'.png';
- $('x-download').href=resultURL;$('x-download').download=$('download').download;
  $('empty').hidden=true;$('preview-wrap').hidden=false;$('save-area').hidden=false;$('adjust').hidden=false;$('dimensions').textContent=`${output.width} × ${output.height} px`;
  $('shift').min=12;$('shift').max=profiles[info.mode].bottom-profiles[info.mode].top-65;$('shift').value=info.d;$('shift-value').textContent=info.d+' px';
  $('seam').min=profiles[info.mode].top+info.d+1;$('seam').max=profiles[info.mode].bottom-1;info.seam=Math.max(Number($('seam').min),Math.min(Number($('seam').max),info.seam));$('seam').value=info.seam;$('seam-value').textContent=info.seam+' px';
  const f=new File([blob],$('download').download,{type:'image/png'});let canShare=false;
  try{canShare=typeof navigator.share==='function'&&!!navigator.canShare?.({files:[f]});}catch{}
- $('share').hidden=!canShare;$('x-native').hidden=!canShare;
+ $('share').hidden=!canShare;
 }
 async function combine(){
  if(busy||selectedCount()!==2)throw Error('スクロール前と後の画像を、それぞれ選んでください。');
@@ -72,15 +77,13 @@ let sharing=false;
 async function shareImage(){
  if(!resultBlob||sharing)return;
  const file=new File([resultBlob],$('download').download,{type:'image/png'});
- sharing=true;$('share').disabled=true;$('share-x-native').disabled=true;$('share-status').textContent='';
+ sharing=true;$('share').disabled=true;$('share-status').textContent='';
  try{await navigator.share({files:[file]});}
  catch(e){if(e.name!=='AbortError'){
-  $('x-sharing').hidden=false;$('share-x').setAttribute('aria-expanded','true');
-  $('share-status').textContent='共有メニューを開けませんでした。画像を保存して、Xの投稿画面で添付してください。';
- }}finally{sharing=false;$('share').disabled=false;$('share-x-native').disabled=false;}
+  $('share-status').textContent='共有できませんでした。「PNGを保存」から画像を保存し、共有先のアプリで添付してください。';
+ }}finally{sharing=false;$('share').disabled=false;}
 }
-$('share').addEventListener('click',shareImage);$('share-x-native').addEventListener('click',shareImage);
-$('share-x').addEventListener('click',()=>{if(!resultBlob)return;const expanded=$('x-sharing').hidden;$('x-sharing').hidden=!expanded;$('share-x').setAttribute('aria-expanded',String(expanded));});
+$('share').addEventListener('click',shareImage);
 // Optional browser agent interface, using the same validated actions as the screen.
 if(document.modelContext?.registerTool){
  for(const tool of [
