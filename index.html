@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>パワアド能力データスクショつなぎ</title><meta name="description" content="パワアドの能力データのスクロール前後の画像を1枚ずつ選んで合成。画像は端末内で処理します。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101a2b'/%3E%3Cpath d='M8 8h16v7H8zm0 10h16v7H8z' fill='%2353dfbe'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css"><script type="module" src="app.js"></script>
+</head>
+<body>
+<header><h1 class="brand"><span class="mark" aria-hidden="true">▤</span><span>パワアド能力データスクショつなぎ</span></h1><span class="private">画像は端末内で処理</span></header>
+<main>
+<section class="intro"><p>スクロール前と後のスクショを、それぞれ1枚ずつ選んでください。</p><p class="site-description">これはパワプロアドベンチャーズの能力データのスクロールが必要なスクショをつなぎ合わせるためのサイトです。<br>能力データのサクセス能力とサクセスデータに対応しております</p></section>
+<div class="workspace">
+<section class="controls" aria-label="画像の選択と調整">
+<div id="drop-before" class="drop"><h2>① スクロール前の画面</h2><p>一覧をいちばん上に戻した画像</p><div id="thumb-before" class="slot-preview" hidden></div><label id="label-before" class="primary file-button" for="file-before">スクロール前の画像を選ぶ</label><input id="file-before" class="image-file" type="file" accept="image/png,image/jpeg,image/webp"></div>
+<div id="drop-after" class="drop"><h2>② スクロール後の画面</h2><p>一覧をいちばん下まで動かした画像</p><div id="thumb-after" class="slot-preview" hidden></div><label id="label-after" class="primary file-button" for="file-after">スクロール後の画像を選ぶ</label><input id="file-after" class="image-file" type="file" accept="image/png,image/jpeg,image/webp"></div>
+<small class="file-hint">PNG・JPEG・WebP ／ 1枚20MBまで<br>PCでは、それぞれの枠にドラッグしても選べます。</small>
+<div class="setting"><label for="mode">画面の種類</label><select id="mode"><option value="auto">自動で判別</option><option value="abilities">特殊能力</option><option value="data">サクセスデータ</option></select></div>
+<button id="combine" class="primary wide" disabled>1枚につなぐ</button>
+<p id="status" class="status" role="status" aria-live="polite">2枚の画像で、同じ項目が1〜2段重なるように撮影してください。</p>
+<details id="adjust" hidden><summary>つなぎ目を調整</summary><p>位置が少しずれる場合だけ調整してください。</p><label for="shift">上下のずれ <output id="shift-value"></output></label><input id="shift" type="range" min="1" max="450" value="200"><div class="nudge"><button id="minus" aria-label="上下のずれを1ピクセル減らす">−1</button><button id="plus" aria-label="上下のずれを1ピクセル増やす">＋1</button><button id="reset">自動位置に戻す</button></div><label for="seam">つなぐ位置 <output id="seam-value"></output></label><input id="seam" type="range" min="600" max="810" value="750"></details>
+<p class="scope">このゲームの横向き「能力データ」画面向けの試作版です。特殊能力・サクセスデータに対応。別画面や、重なりのない画像は合成できません。</p>
+</section>
+<section class="result" aria-label="合成プレビュー"><div class="result-head"><h2>仕上がり</h2><span id="dimensions">PNG</span></div><div id="empty" class="empty"><div class="stack" aria-hidden="true"><span></span><span></span></div><h3>全項目をまとめて見やすく</h3><p>重複を合わせて、外側の背景をトリミング。<br>文字や数値は元画像をそのまま使います。</p></div><div id="preview-wrap" hidden><img id="preview" alt="スクリーンショットの合成結果。保存前に全項目を確認してください。"></div><div id="save-area" class="save-area" hidden><p>最終行まで入っているか確認してから保存してください。</p><div class="save-buttons"><a id="download" class="primary" download="能力データ.png">PNGを保存</a><button id="share-x" class="x-button" aria-expanded="false" aria-controls="x-sharing">Xで共有</button><button id="share" hidden>画像を共有</button></div><section id="x-sharing" class="x-sharing" aria-labelledby="x-heading" hidden><h3 id="x-heading">Xへ画像を投稿</h3><div id="x-native" hidden><button id="share-x-native">共有メニューでXを選ぶ</button><p>共有先の一覧からXを選んでください。Xが表示されない場合は、下の手順をご利用ください。</p></div><ol><li><a id="x-download" class="secondary-link" download="能力データ.png">画像を保存</a></li><li><a id="x-compose" class="secondary-link" href="https://x.com/intent/tweet" target="_blank" rel="noopener noreferrer">Xの投稿画面を開く<span class="new-tab">（別タブ）</span></a><p>保存した画像を添付して投稿してください。投稿画面に画像は自動添付されません。</p></li></ol><p id="share-status" class="share-status" role="status" aria-live="polite"></p></section></div></section>
+</div>
+<footer>処理のための画像送信は行いません。選んだ画像は、ページを閉じると破棄されます。</footer>
+</main>
+</body></html>
