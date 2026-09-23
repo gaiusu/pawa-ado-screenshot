@@ -119,6 +119,14 @@ export function composeMany(canvases,info,scale=1){
  const c=makeCanvas(1668,945+total),g=c.getContext('2d');g.imageSmoothingEnabled=false;
  g.drawImage(base,427,64,1668,758,0,0,1668,758);
  g.drawImage(base,427,822,1668,1,0,758,1668,total);
+ // The stat cards' rounded edges can touch the stretched row. Extend only the
+ // plain left-hand background here, using a clean gutter beside the stat cards.
+ const sample=base.getContext('2d').getImageData(1136,700,12,48).data;
+ const color=[0,1,2].map(channel=>{
+  const values=[];for(let i=channel;i<sample.length;i+=4)values.push(sample[i]);
+  values.sort((a,b)=>a-b);return values[Math.floor(values.length/2)];
+ });
+ g.fillStyle=`rgb(${color.join(',')})`;g.fillRect(464-427,758,1163-464,total);
  g.drawImage(base,427,822,1668,187,0,758+total,1668,187);
  let offset=0;
  info.joins.forEach((join,i)=>{

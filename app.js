@@ -1,4 +1,4 @@
-import {normalize,analyzeMany,composeMany,profiles,maxShift} from './core.js?v=20260923-1';
+import {normalize,analyzeMany,composeMany,profiles,maxShift} from './core.js?v=20260923-2';
 const $=id=>document.getElementById(id);
 let images=[],info=null,resultBlob=null,resultURL=null,busy=false,revision=0,sharing=false;
 function status(text,type=''){ $('status').textContent=text;$('status').className='status '+type; }
