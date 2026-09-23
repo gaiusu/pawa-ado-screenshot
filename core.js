@@ -1,5 +1,7 @@
 export const W=2520,H=1080;
 export const profiles={abilities:{top:486,bottom:822,name:'特殊能力'},data:{top:280,bottom:822,name:'サクセスデータ'}};
+// Include partial-row overlaps, while retaining room to compare actual lettering.
+export const maxShift=p=>p.bottom-p.top-40;
 export function makeCanvas(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;return c;}
 export function normalize(img){
  const w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
@@ -33,20 +35,49 @@ export function chooseSeam(a,b,d,p){
   if(sum<best){best=sum;seam=y;}
  }return seam;
 }
-function matchPair(a,b,p){
+function textError(a,b,d,p){
+ let total=0,n=0;
+ for(let y=p.top+d+8;y<p.bottom-12;y+=2)for(let x=1190;x<2000;x+=3){
+  const i=(y*W+x)*4,j=((y-d)*W+x)*4;
+  // Compare the union of dark lettering in both images, not the repeating blue frames.
+  if(Math.max(a[i],a[i+1],a[i+2])<150||Math.max(b[j],b[j+1],b[j+2])<150){
+   total+=(Math.abs(a[i]-b[j])+Math.abs(a[i+1]-b[j+1])+Math.abs(a[i+2]-b[j+2]))/3;n++;
+  }
+ }
+ return n>=30?total/n:null;
+}
+function scrollThumb(a,p){
+ const runs=[];let start=-1;
+ for(let y=p.top+6;y<p.bottom-4;y++){
+  let count=0;
+  for(let x=2021;x<2036;x++){const i=(y*W+x)*4;if(a[i]>180&&a[i+1]>80&&a[i+1]<215&&a[i+2]<110)count++;}
+  if(count>=4){if(start<0)start=y;}else if(start>=0){runs.push({top:start,height:y-start});start=-1;}
+ }
+ if(start>=0)runs.push({top:start,height:p.bottom-4-start});
+ const valid=runs.filter(r=>r.height>=16&&r.height<p.bottom-p.top-12);
+ return valid.length===1?valid[0]:null;
+}
+function matchPair(a,b,p,thumbA=null,thumbB=null){
+ const sameThumbSize=thumbA&&thumbB&&Math.abs(thumbA.height-thumbB.height)<=Math.max(4,Math.min(thumbA.height,thumbB.height)*.08);
+ const direction=sameThumbSize&&Math.abs(thumbA.top-thumbB.top)>3?(thumbA.top<thumbB.top?0:1):null;
  let candidates=[];
  for(let order=0;order<2;order++){
+  if(direction!==null&&order!==direction)continue;
   const first=order?b:a,last=order?a:b;let best={score:Infinity};
-  for(let d=12;d<p.bottom-p.top-65;d++){const s=score(first,last,d,p,9);if(s<best.score)best={score:s,d};}
+  for(let d=12;d<=maxShift(p);d++){const s=score(first,last,d,p,9);if(s<best.score)best={score:s,d};}
   const center=best.d;
-  for(let d=Math.max(12,center-3);d<=center+3;d++){const s=score(first,last,d,p,5);if(s<best.score)best={score:s,d};}
+  best={score:Infinity};
+  for(let d=Math.max(12,center-3);d<=Math.min(maxShift(p),center+3);d++){const s=score(first,last,d,p,5);if(s<best.score)best={score:s,d};}
   candidates.push({...best,order});
  }
  candidates.sort((x,y)=>x.score-y.score);const best=candidates[0];
  const zero=score(a,b,0,p,9);
  if(zero<3)return {duplicate:true};
- if(best.score>40||best.score>zero*.85)return null;
+ if(best.score>28||best.score>zero*.85)return null;
  const first=best.order?b:a,last=best.order?a:b;
+ const lettering=textError(first,last,best.d,p);
+ if(lettering!==null&&lettering>45)return null;
+ if(p.bottom-p.top-best.d<80&&(best.score>18||lettering===null))return null;
  const seam=chooseSeam(first,last,best.d,p);
  return {...best,seam,confidence:best.score<24?'high':'check',originalD:best.d,originalSeam:seam};
 }
@@ -59,9 +90,10 @@ export async function analyzeMany(canvases,mode='auto',onProgress=()=>{}){
   if(identityError(data[0],data[i])>28)throw Error(`画像1と画像${i+1}の冒険者や画面が違う可能性があります。同じ冒険者の画像を選んでください。`);
   if(mode==='auto'&&detectMode(data[i])!==ma)throw Error('画面の種類が違います。同じタブの画像を選んでください。');
  }
+ const thumbs=data.map(a=>scrollThumb(a,p));
  const edges=Array.from({length:n},()=>Array(n).fill(null));let checked=0;
  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){
-  const match=matchPair(data[i],data[j],p);
+  const match=matchPair(data[i],data[j],p,thumbs[i],thumbs[j]);
   if(match?.duplicate)throw Error(`画像${i+1}と画像${j+1}は同じ位置の画像のようです。どちらかを削除してください。`);
   if(match){const from=match.order?j:i,to=match.order?i:j;edges[from][to]=match;}
   onProgress(++checked,n*(n-1)/2);await new Promise(r=>setTimeout(r,0));

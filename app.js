@@ -1,4 +1,4 @@
-import {normalize,analyzeMany,composeMany,profiles} from './core.js?v=20260921-1';
+import {normalize,analyzeMany,composeMany,profiles,maxShift} from './core.js?v=20260923-1';
 const $=id=>document.getElementById(id);
 let images=[],info=null,resultBlob=null,resultURL=null,busy=false,revision=0,sharing=false;
 function status(text,type=''){ $('status').textContent=text;$('status').className='status '+type; }
@@ -39,7 +39,7 @@ async function addFiles(files){
 function activeJoin(){return info?.joins[Number($('join').value)||0];}
 function showAdjustment(){
  const j=activeJoin();if(!j)return;const p=profiles[info.mode];
- $('shift').min=12;$('shift').max=p.bottom-p.top-65;$('shift').value=j.d;$('shift-value').textContent=j.d+' px';
+ $('shift').min=12;$('shift').max=maxShift(p);$('shift').value=j.d;$('shift-value').textContent=j.d+' px';
  $('seam').min=p.top+j.d+1;$('seam').max=p.bottom-1;j.seam=Math.max(Number($('seam').min),Math.min(Number($('seam').max),j.seam));$('seam').value=j.seam;$('seam-value').textContent=j.seam+' px';
 }
 async function render(){
@@ -67,7 +67,7 @@ async function combine(){
 }
 async function adjust(delta,seam){
  const j=activeJoin();if(!j)throw Error('先に合成してください。');const p=profiles[info.mode];
- if(!Number.isInteger(delta)||delta<12||delta>p.bottom-p.top-65)throw Error('調整値が範囲外です。');
+ if(!Number.isInteger(delta)||delta<12||delta>maxShift(p))throw Error('調整値が範囲外です。');
  if(!Number.isInteger(seam)||seam<p.top+delta+1||seam>=p.bottom)throw Error('つなぐ位置が範囲外です。');
  j.d=delta;j.seam=seam;await render();
 }
