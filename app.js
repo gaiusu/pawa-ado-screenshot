@@ -1,6 +1,13 @@
 import {normalize,analyzeMany,composeMany,profiles,maxShift} from './core.js?v=20260923-2';
 const $=id=>document.getElementById(id);
 let images=[],info=null,resultBlob=null,resultURL=null,busy=false,revision=0,sharing=false;
+function newFilename(){
+ const now=new Date(),pad=(value,length=2)=>String(value).padStart(length,'0');
+ const date=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+ const time=`${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}_${pad(now.getMilliseconds(),3)}`;
+ const id=crypto.getRandomValues(new Uint32Array(1))[0].toString(16).padStart(8,'0');
+ return `${profiles[info.mode].name}_${date}_${time}_${id}.png`;
+}
 function status(text,type=''){ $('status').textContent=text;$('status').className='status '+type; }
 function clearResult(){revision++;info=null;resultBlob=null;if(resultURL)URL.revokeObjectURL(resultURL);resultURL=null;$('preview').removeAttribute('src');$('download').removeAttribute('href');$('share-status').textContent='';$('preview-wrap').hidden=true;$('save-area').hidden=true;$('adjust').hidden=true;$('empty').hidden=false;$('dimensions').textContent='PNG';}
 function setBusy(b){busy=b;document.body.classList.toggle('busy',b);$('combine').disabled=b||images.length<2;$('files').disabled=b;$('mode').disabled=b;$('clear-images').disabled=b;document.querySelectorAll('.remove-image').forEach(el=>el.disabled=b);}
@@ -48,7 +55,7 @@ async function render(){
  const blob=await new Promise(resolve=>output.toBlob(resolve,'image/png'));
  if(current!==revision)return;if(!blob)throw Error('画像を保存用に変換できませんでした。');
  if(resultURL)URL.revokeObjectURL(resultURL);resultBlob=blob;resultURL=URL.createObjectURL(blob);
- $('preview').src=resultURL;$('download').href=resultURL;$('download').download=profiles[info.mode].name+'_'+new Date().toISOString().slice(0,10)+'.png';
+ $('preview').src=resultURL;$('download').href=resultURL;$('download').download=newFilename();
  $('empty').hidden=true;$('preview-wrap').hidden=false;$('save-area').hidden=false;$('adjust').hidden=false;$('dimensions').textContent=`${output.width} × ${output.height} px`;
  showAdjustment();
  const f=new File([blob],$('download').download,{type:'image/png'});let canShare=false;
@@ -85,13 +92,14 @@ $('shift').addEventListener('input',updateAdjustment);$('seam').addEventListener
 $('minus').addEventListener('click',()=>{$('shift').stepDown();updateAdjustment();});$('plus').addEventListener('click',()=>{$('shift').stepUp();updateAdjustment();});
 $('reset').addEventListener('click',()=>{const j=activeJoin();if(j)adjust(j.originalD,j.originalSeam).catch(e=>status(e.message,'error'));});
 async function shareImage(){
- if(!resultBlob||sharing)return;const file=new File([resultBlob],$('download').download,{type:'image/png'});
+ if(!resultBlob||sharing)return;const file=new File([resultBlob],newFilename(),{type:'image/png'});
  sharing=true;$('share').disabled=true;$('share-status').textContent='';
  try{await navigator.share({files:[file]});}
  catch(e){if(e.name!=='AbortError')$('share-status').textContent='共有できませんでした。「PNGを保存」から画像を保存し、共有先のアプリで添付してください。';}
  finally{sharing=false;$('share').disabled=false;}
 }
 $('share').addEventListener('click',shareImage);
+$('download').addEventListener('click',()=>{if(resultBlob)$('download').download=newFilename();});
 if(document.modelContext?.registerTool){
  for(const tool of [
  {name:'read_stitch_state',title:'合成状態を確認',description:'現在の画像の枚数と、合成結果の状態を確認します。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:()=>({selectedImages:images.length,hasResult:!!resultBlob,mode:info?.mode??null,order:info?.order.map(i=>i+1)??[],shifts:info?.joins.map(j=>j.d)??[]})},
