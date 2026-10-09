@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>パワアド能力データスクショつなぎ</title><meta name="description" content="パワアドの能力データのスクロールした画像を複数選んで1枚に合成。画像は端末内で処理します。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101a2b'/%3E%3Cpath d='M8 8h16v7H8zm0 10h16v7H8z' fill='%2353dfbe'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="style.css?v=20261009-party-notes"><script type="module" src="app.js?v=20261009-party-notes"></script>
+<link rel="stylesheet" href="style.css?v=20261009-party-minimal"><script type="module" src="app.js?v=20261009-party-minimal"></script>
 </head>
 <body>
 <header><h1 class="brand"><span class="mark" aria-hidden="true">▤</span><span>パワアド能力データスクショつなぎ</span></h1><span class="private">画像は端末内で処理</span></header>
@@ -18,18 +18,13 @@
 <div class="workspace">
 <section class="controls" aria-label="画像の選択と調整">
 <div id="sheet-options" hidden>
-<h2>6人の思い出を残す</h2><p class="file-hint">上部に2行の自由記入欄、その下に横2列×縦3段でスクショを配置します。キャラ間の見出しは入れません。</p>
-<label for="memo-1">自由記入欄・1行目</label><input id="memo-1" type="text" maxlength="80" placeholder="例：〇〇の最終ステージを初クリア！">
-<label for="memo-2">自由記入欄・2行目</label><input id="memo-2" type="text" maxlength="80" placeholder="例：2026/10/08　お気に入りの編成で達成">
-<button id="apply-memo" type="button" disabled>記入内容をシートに反映</button>
-<label for="character-height">シート内のキャラの高さ上限</label><select id="character-height" aria-describedby="height-help"><option value="800">コンパクト（800px）</option><option value="1200" selected>標準（1200px）</option><option value="1600">大きめ（1600px）</option></select><p id="height-help" class="file-hint">長い画像だけ、縦横比を保って全体を縮小します。能力の途中は切りません。細かな文字は「このキャラを保存」から原寸で確認できます。</p>
-
-<p class="file-hint">1キャラにつきスクショ1枚を選びます。スクロール途中の画像も使用できます。特殊能力欄はつなぎません。</p>
+<h2>自由記入欄</h2>
+<label class="sr-only" for="memo-1">自由記入欄・1行目</label><input id="memo-1" type="text" maxlength="80">
+<label class="sr-only" for="memo-2">自由記入欄・2行目</label><input id="memo-2" type="text" maxlength="80">
 </div>
 <div id="drop" class="drop"><h2>スクショを選択</h2><p id="upload-help">同じ冒険者・同じタブの画像を選んでください。<br>上下の順番は自動で判別します。</p><label id="file-label" class="primary file-button" for="files">スクショをまとめて選ぶ</label><input id="files" class="image-file" type="file" accept="image/png,image/jpeg,image/webp" multiple></div>
 <div class="selection-head"><span id="image-count">0 / 10枚</span><button id="clear-images" type="button" hidden>すべて削除</button></div><div id="selected-images" class="inputs" aria-label="選択した画像"></div>
 <small class="file-hint">PNG・JPEG・WebP ／ 1枚20MBまで<br><span id="limit-hint">2〜10枚</span><br>同じ欄から1枚ずつ追加することもできます。<br>PCでは、この枠にまとめてドラッグできます。</small>
-<div id="party-crop-setting" class="setting" hidden><label for="party-crop">キャラ画像の切り取り</label><select id="party-crop"><option value="auto">自動（横長の全画面から能力データ枠を切り取る）</option><option value="full">全画面から能力データ枠を切り取る</option><option value="original">画像全体を使う（切り取り済み・結合済み画像など）</option></select><p class="file-hint">プレビューで切り取り範囲を確認してください。範囲が合わない場合は「画像全体を使う」を選べます。</p></div>
 <div id="mode-setting" class="setting"><label for="mode">画面の種類</label><select id="mode"><option value="auto">自動で判別</option><option value="abilities">特殊能力</option><option value="data">サクセスデータ</option></select></div>
 <button id="combine" class="primary wide" disabled>1枚につなぐ</button>
 <button id="cancel" type="button" hidden>処理を中止</button>

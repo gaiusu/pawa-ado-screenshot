@@ -14,26 +14,24 @@ async function withImage(blob,fn){
  try{img.src=url;await img.decode();return await fn(img);}finally{img.src='';URL.revokeObjectURL(url);}
 }
 // Copy only the photographed content. Party mode never aligns or joins lists.
-export async function readPartyShot(file,mode='auto'){
+export async function readPartyShot(file){
  if(file.size>20*1024*1024||!/^image\/(png|jpeg|webp)$/.test(file.type))throw Error('20MB以下のPNG・JPEG・WebPを選んでください。');
  return withImage(file,async img=>{
   const w=img.naturalWidth,h=img.naturalHeight;if(w*h>24000000)throw Error('2400万画素以下の画像を選んでください。');
-  const full=mode==='full'||(mode==='auto'&&w/h>1.55);let x=0,y=0,width=w,height=h;
+  const full=w/h>1.55;let x=0,y=0,width=w,height=h;
   if(full){const scale=h/1080;x=Math.round((427-1260)*scale+w/2);y=Math.round(64*scale);width=Math.round(1668*scale);height=Math.round(945*scale);}
-  if(x<0||y<0||x+width>w||y+height>h)throw Error('能力データ枠を切り取れません。「画像全体を使う」を選んでください。');
+  if(x<0||y<0||x+width>w||y+height>h)throw Error('能力データ枠を切り取れません。ゲームの横向きスクショを選んでください。');
   const canvas=makeCanvas(width,height);
   try{canvas.getContext('2d').drawImage(img,x,y,width,height,0,0,width,height);return {blob:await canvasBlob(canvas),width,height,full};}finally{release(canvas);}
  });
 }
 export function sheetLayout(results,options={}){
- const maxCharacterHeight=options.maxCharacterHeight??1200;
- if(![800,1200,1600].includes(maxCharacterHeight))throw Error('キャラの高さ上限を選び直してください。');
- const sizes=results.map((r,i)=>{const scale=Math.min(1,maxCharacterHeight/r.height);return {slot:r.slot||i+1,width:Math.max(1,Math.round(r.width*scale)),height:Math.min(maxCharacterHeight,r.height),scale};});
+ const sizes=results.map((r,i)=>({slot:r.slot||i+1,width:r.width,height:r.height}));
  const cols=2,margin=24,gap=24,heading=0,cellWidth=Math.max(...results.map(r=>r.width)),headerHeight=176;
  const heights=[320,320,320];sizes.forEach(r=>{const row=Math.floor((r.slot-1)/2);heights[row]=Math.max(heights[row],r.height+heading);});
  const width=margin*2+cellWidth*2+gap,height=margin*2+headerHeight+gap+heights.reduce((a,b)=>a+b,0)+gap*2;
- if(width*height>64000000||width>16384||height>16384)throw Error('シートが大きすぎます。高さ上限を下げるか、解像度を抑えて撮影したスクショを使用してください。');
- return {cols,margin,gap,cellWidth,heading,heights,headerHeight,width,height,sizes,maxCharacterHeight};
+ if(width*height>64000000||width>16384||height>16384)throw Error('シートが大きすぎます。解像度を抑えて撮影したスクショを使用してください。');
+ return {cols,margin,gap,cellWidth,heading,heights,headerHeight,width,height,sizes};
 }
 export async function composeSheet(results,options={},check=()=>{}){
  if(!results.length)throw Error('シートに含めるキャラを1人以上選んでください。');
@@ -46,7 +44,7 @@ export async function composeSheet(results,options={},check=()=>{}){
   for(let slot=1;slot<=6;slot++){
    check();const r=results.find((r,i)=>(r.slot||i+1)===slot),row=Math.floor((slot-1)/2),x=l.margin+((slot-1)%2)*(l.cellWidth+l.gap),y=l.margin+l.headerHeight+l.gap+l.heights.slice(0,row).reduce((a,b)=>a+b+l.gap,0);
    g.fillStyle='#fff4df';g.fillRect(x,y,l.cellWidth,l.heights[row]);
-   if(r)await withImage(r.blob,img=>{check();const size=l.sizes.find(s=>s.slot===slot);g.imageSmoothingEnabled=true;g.imageSmoothingQuality='high';g.drawImage(img,x+Math.floor((l.cellWidth-size.width)/2),y+l.heading,size.width,size.height);});
+   if(r)await withImage(r.blob,img=>{check();const size=l.sizes.find(s=>s.slot===slot);g.drawImage(img,x+Math.floor((l.cellWidth-size.width)/2),y+l.heading);});
    await pause();
   }
   return canvas;

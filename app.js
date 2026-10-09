@@ -1,10 +1,10 @@
 import {analyzeMany,composeMany,profiles,maxShift} from './core.js?v=20261008-local';
-import {readCanvas,readPartyShot,release,canvasBlob,composeSheet,pause} from './batch.js?v=20261009-party-notes';
+import {readCanvas,readPartyShot,release,canvasBlob,composeSheet,pause} from './batch.js?v=20261009-party-minimal';
 const $=id=>document.getElementById(id);
 let images=[],info=null,resultBlob=null,resultURL=null,busy=false,revision=0,sharing=false;
 let activeCanvases=[],batchResults=[],controller=null,resultLabel='能力データ';
 let outputMode='single';
-let partyCropMode='auto';
+let memoVersion=0,memoTimer=null,sheetRefreshRequested=false,sheetRefreshRunning=false;
 const imageSets={single:[],sheet:[]};
 const modeTabs=[...document.querySelectorAll('[role="tab"][data-output-mode]')];
 const isSheet=()=>outputMode==='sheet';
@@ -19,10 +19,9 @@ function newFilename(label=resultLabel){
  return `${label}_${date}_${time}_${id}.png`;
 }
 function status(text,type=''){ $('status').textContent=text;$('status').className='status '+type; }
-function clearResult(){$('apply-memo').disabled=true;activeCanvases.forEach(release);activeCanvases=[];batchResults.forEach(r=>URL.revokeObjectURL(r.url));batchResults=[];$('batch-results').replaceChildren();$('batch-area').hidden=true;revision++;info=null;resultBlob=null;if(resultURL)URL.revokeObjectURL(resultURL);resultURL=null;$('preview').removeAttribute('src');$('download').removeAttribute('href');$('share-status').textContent='';$('preview-wrap').hidden=true;$('save-area').hidden=true;$('adjust').hidden=true;$('empty').hidden=false;$('dimensions').textContent='PNG';}
+function clearResult(){clearTimeout(memoTimer);sheetRefreshRequested=false;activeCanvases.forEach(release);activeCanvases=[];batchResults.forEach(r=>URL.revokeObjectURL(r.url));batchResults=[];$('batch-results').replaceChildren();$('batch-area').hidden=true;revision++;info=null;resultBlob=null;if(resultURL)URL.revokeObjectURL(resultURL);resultURL=null;$('preview').removeAttribute('src');$('download').removeAttribute('href');$('share-status').textContent='';$('preview-wrap').hidden=true;$('save-area').hidden=true;$('adjust').hidden=true;$('empty').hidden=false;$('dimensions').textContent='PNG';}
 function setBusy(b){busy=b;document.body.classList.toggle('busy',b);$('combine').disabled=b||images.length<minimumFiles()||images.length>fileLimit();
- for(const id of ['files','mode','clear-images','memo-1','memo-2','character-height','party-crop'])$(id).disabled=b;
- $('apply-memo').disabled=b||!batchResults.length;
+ for(const id of ['files','mode','clear-images'])$(id).disabled=b;
  modeTabs.forEach(tab=>tab.disabled=b);
  document.querySelectorAll('.remove-image,.include-result,.slot-select,#adjust input,#adjust select,#adjust button').forEach(el=>el.disabled=b);
  $('cancel').hidden=!b;$('cancel').disabled=false;
@@ -34,13 +33,13 @@ function selectionStatus(){
 }
 function showSettings(){
  const sheet=isSheet();
- $('sheet-options').hidden=!sheet;$('mode-setting').hidden=sheet;$('party-crop-setting').hidden=!sheet;
+ $('sheet-options').hidden=!sheet;$('mode-setting').hidden=sheet;
  $('combine').textContent=sheet?'パーティシートを作る':'1枚につなぐ';
  $('upload-help').textContent=sheet?'1キャラにつき1枚、最大6枚を選んでください。選んだ順に配置し、あとから配置番号に合わせて入れ替えられます。':'同じ冒険者・同じタブの画像を選んでください。上下の順番は自動で判別します。';
  $('limit-hint').textContent=sheet?'1〜6枚・1キャラにつき1枚':'2〜10枚';
  $('scope').textContent=sheet?'写っている内容だけを切り取り・配置します。特殊能力欄の結合、キャラの自動分類、重複の除去は行いません。全項目を載せたい場合は「1枚の画像を作る」で先につないだ画像を選んでください。':'このゲームの横向き「能力データ」画面向けの試作版です。特殊能力・サクセスデータに対応。別画面や、重なりのない画像は合成できません。';
- $('empty-title').textContent=sheet?'6人の記録を1枚に':'全項目をまとめて見やすく';
- $('empty-help').textContent=sheet?'上部に2行のメモ、その下に選んだスクショを横2列×縦3段で並べます。':'重複を合わせて、外側の背景をトリミング。文字や数値は元画像をそのまま使います。';
+ $('empty-title').textContent=sheet?'6枚を1枚に':'全項目をまとめて見やすく';
+ $('empty-help').textContent=sheet?'上部に自由記入欄、その下にスクショを横2列×縦3段で配置します。':'重複を合わせて、外側の背景をトリミング。文字や数値は元画像をそのまま使います。';
  $('save-help').textContent=sheet?'切り取り範囲と配置番号の対応を確認してから保存してください。':'最終行まで入っているか確認してから保存してください。';
  showImages();setBusy(false);selectionStatus();
 }
@@ -57,7 +56,7 @@ function showImages(){
 async function loadFile(file){
  let canvas,thumb;
  try{
-  if(isSheet()){const shot=await readPartyShot(file,$('party-crop').value);return {file,name:file.name,url:URL.createObjectURL(shot.blob),width:shot.width,height:shot.height,partyBlob:shot.blob};}
+  if(isSheet()){const shot=await readPartyShot(file);return {file,name:file.name,url:URL.createObjectURL(shot.blob),width:shot.width,height:shot.height,partyBlob:shot.blob};}
   const decoded=await readCanvas(file);canvas=decoded.canvas;
   thumb=document.createElement('canvas');thumb.width=320;thumb.height=137;thumb.getContext('2d').drawImage(canvas,0,0,320,137);
   const blob=await canvasBlob(thumb,'image/jpeg',.8);
@@ -76,7 +75,7 @@ async function addFiles(files){
   clearResult();images.push(...loaded);showImages();selectionStatus();selected=true;
  }catch(e){loaded.forEach(item=>{if(item.url)URL.revokeObjectURL(item.url);});status(e.name==='AbortError'?'読み込みを中止しました。':(e.message||'画像を読み込めませんでした。')+(images.length?' 選択済みの画像は残しています。':''),'error');}
  finally{setBusy(false);$('files').value='';if(selected&&images.length>=minimumFiles())requestAnimationFrame(()=>{
-  if(matchMedia('(max-width:850px)').matches)$('combine').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth',block:'center'});
+  if(isSheet()||matchMedia('(max-width:850px)').matches)(isSheet()?$('selected-images'):$('combine')).scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth',block:'center'});
  });}
 }
 function activeJoin(){return info?.joins[Number($('join').value)||0];}
@@ -86,12 +85,12 @@ function showAdjustment(){
  $('seam').min=p.top+j.d+1;$('seam').max=p.bottom-1;j.seam=Math.max(Number($('seam').min),Math.min(Number($('seam').max),j.seam));$('seam').value=j.seam;$('seam-value').textContent=j.seam+' px';
 }
 async function displayOutput(output,label){
- const current=++revision,blob=await canvasBlob(output);checkCancelled();if(current!==revision)return;
+ const current=++revision,blob=await canvasBlob(output);checkCancelled();if(current!==revision)return false;
  if(resultURL)URL.revokeObjectURL(resultURL);resultLabel=label;resultBlob=blob;resultURL=URL.createObjectURL(blob);
  $('preview').src=resultURL;$('download').href=resultURL;$('download').download=newFilename();
  $('empty').hidden=true;$('preview-wrap').hidden=false;$('save-area').hidden=false;$('dimensions').textContent=output.width+' × '+output.height+' px';
  let canShare=false;try{const file=new File([blob],newFilename(),{type:'image/png'});canShare=typeof navigator.share==='function'&&!!navigator.canShare?.({files:[file]});}catch{}
- $('share').hidden=!canShare;
+ $('share').hidden=!canShare;return true;
 }
 async function render(){
  if(!info)return;const scale=Math.min(2,...images.map(im=>im.height/1080)),output=composeMany(activeCanvases,info,scale);
@@ -106,7 +105,7 @@ function showBatch(results){
   label.append(input,document.createTextNode('キャラ '+r.number+' をシートに含める'));img.src=r.url;img.alt='キャラ'+r.number+'の選択したスクショ';img.loading='lazy';
   text.textContent='選択した画像：'+images[r.indices[0]].name;download.textContent='このキャラを保存';download.className='secondary-link';download.href=r.url;download.download=newFilename('キャラ'+r.number+'_スクショ');
   download.addEventListener('click',()=>download.download=newFilename('キャラ'+r.number+'_スクショ'));
-  input.addEventListener('change',async()=>{r.included=input.checked;controller=new AbortController();setBusy(true);try{await renderSheet();}catch(e){status(e.message,'error');}finally{setBusy(false);}});
+  input.addEventListener('change',async()=>{r.included=input.checked;await refreshSheet();});
   const slotLabel=document.createElement('label'),slot=document.createElement('select');slot.className='slot-select';slot.dataset.number=r.number;slot.setAttribute('aria-label','キャラ'+r.number+'の配置番号');
   for(let n=1;n<=6;n++){const option=document.createElement('option');option.value=n;option.textContent='位置 '+n+'（'+(n%2?'左':'右')+'・'+Math.ceil(n/2)+'段目）';slot.append(option);}slot.value=r.slot;
   slotLabel.className='slot-label';slotLabel.append(document.createTextNode('シート上の位置'),slot);
@@ -118,9 +117,9 @@ function showBatch(results){
 async function renderSheet(){
  const included=batchResults.filter(r=>r.included);
  if(!included.length){revision++;if(resultURL)URL.revokeObjectURL(resultURL);resultURL=null;resultBlob=null;$('preview').removeAttribute('src');$('download').removeAttribute('href');$('preview-wrap').hidden=true;$('save-area').hidden=true;$('empty').hidden=false;$('dimensions').textContent='PNG';status('シートに含めるキャラを1人以上選んでください。');return;}
- const maxCharacterHeight=Number($('character-height').value),reduced=included.filter(r=>r.height>maxCharacterHeight).length;
- const output=await composeSheet(included,{notes:[$('memo-1').value,$('memo-2').value],maxCharacterHeight},checkCancelled);
- try{await displayOutput(output,'パーティシート');status(included.length+'枚のスクショをパーティシートに配置しました。'+(reduced?reduced+'枚を高さ'+maxCharacterHeight+'px以内に縮小しています。原寸画像は「このキャラを保存」から保存できます。':'')+'特殊能力欄はつながず、各画像に写っている内容を使用しています。','success');}finally{release(output);}
+ const version=memoVersion;
+ const output=await composeSheet(included,{notes:[$('memo-1').value,$('memo-2').value]},checkCancelled);
+ try{if(version!==memoVersion)return;if(await displayOutput(output,'パーティシート'))status(included.length+'枚のスクショを配置しました。','success');}finally{release(output);}
 }
 async function combine(){
  if(busy||images.length<minimumFiles()||images.length>fileLimit())throw Error('画像の枚数を確認してください。');
@@ -136,7 +135,7 @@ async function combine(){
   $('join').replaceChildren(...info.joins.map((j,i)=>{const option=document.createElement('option');option.value=i;option.textContent='つなぎ目'+(i+1)+'（画像'+(info.order[i]+1)+' → 画像'+(info.order[i+1]+1)+'）';return option;}));
   await render();status(images.length+'枚の'+profiles[info.mode].name+'を合成しました（画像'+info.order.map(i=>i+1).join(' → ')+'）。'+(info.confidence==='check'?'つなぎ目を拡大して確認してください。':'最終行まで入っているか確認してください。'),'success');
   return {mode:info.mode,order:info.order.map(i=>i+1),shifts:info.joins.map(j=>j.d),confidence:info.confidence};
- }catch(e){clearResult();status(e.name==='AbortError'?'処理を中止しました。選択した画像は残っています。':e.message,'error');throw e;}finally{setBusy(false);}
+ }catch(e){clearResult();status(e.name==='AbortError'?'処理を中止しました。選択した画像は残っています。':e.message,'error');throw e;}finally{setBusy(false);if(sheetRefreshRequested&&batchResults.length)refreshSheet();}
 }
 async function adjust(delta,seam){
  const j=activeJoin();if(!j)throw Error('先に合成してください。');const p=profiles[info.mode];
@@ -171,31 +170,37 @@ modeTabs.forEach((tab,index)=>{
   event.preventDefault();switchOutputMode(modeTabs[target].dataset.outputMode);modeTabs[target].focus();
  });
 });
-async function refreshSheet(){if(!batchResults.length)return;controller=new AbortController();setBusy(true);try{await renderSheet();}catch(e){status(e.message,'error');}finally{setBusy(false);}}
-$('apply-memo').addEventListener('click',refreshSheet);
-$('character-height').addEventListener('change',refreshSheet);
-$('party-crop').addEventListener('change',async()=>{
- if(busy||!isSheet())return;
- if(!images.length){partyCropMode=$('party-crop').value;return;}
- controller=new AbortController();setBusy(true);const loaded=[];
- try{for(const item of images){checkCancelled();loaded.push(await loadFile(item.file));await pause();}checkCancelled();clearResult();images.forEach(item=>URL.revokeObjectURL(item.url));images=loaded;partyCropMode=$('party-crop').value;showImages();selectionStatus();}
- catch(e){loaded.forEach(item=>URL.revokeObjectURL(item.url));$('party-crop').value=partyCropMode;status(e.name==='AbortError'?'切り取りの変更を中止しました。':e.message,'error');}
- finally{setBusy(false);}
-});
+async function refreshSheet(){
+ if(!isSheet()||!batchResults.length)return;
+ sheetRefreshRequested=true;
+ if(busy||sheetRefreshRunning)return;
+ clearTimeout(memoTimer);sheetRefreshRunning=true;controller=new AbortController();setBusy(true);
+ try{do{sheetRefreshRequested=false;await renderSheet();}while(sheetRefreshRequested&&!controller.signal.aborted);}
+ catch(e){sheetRefreshRequested=false;status(e.name==='AbortError'?'更新を中止しました。':e.message,'error');}
+ finally{sheetRefreshRunning=false;setBusy(false);}
+}
+function updateMemo(){
+ memoVersion++;revision++;clearTimeout(memoTimer);
+ if(!isSheet()||!batchResults.length)return;
+ sheetRefreshRequested=true;$('save-area').hidden=true;
+ if(!sheetRefreshRunning)memoTimer=setTimeout(refreshSheet,120);
+}
+$('memo-1').addEventListener('input',updateMemo);
+$('memo-2').addEventListener('input',updateMemo);
 $('cancel').addEventListener('click',()=>{controller?.abort();$('cancel').disabled=true;status('中止しています…');});
 $('join').addEventListener('change',showAdjustment);
 $('shift').addEventListener('input',updateAdjustment);$('seam').addEventListener('input',updateAdjustment);
 $('minus').addEventListener('click',()=>{$('shift').stepDown();updateAdjustment();});$('plus').addEventListener('click',()=>{$('shift').stepUp();updateAdjustment();});
 $('reset').addEventListener('click',()=>{const j=activeJoin();if(j)adjust(j.originalD,j.originalSeam).catch(e=>status(e.message,'error'));});
 async function shareImage(){
- if(!resultBlob||sharing)return;const file=new File([resultBlob],newFilename(),{type:'image/png'});
+ if(!resultBlob||sharing||(isSheet()&&(sheetRefreshRequested||sheetRefreshRunning)))return;const file=new File([resultBlob],newFilename(),{type:'image/png'});
  sharing=true;$('share').disabled=true;$('share-status').textContent='';
  try{await navigator.share({files:[file]});}
  catch(e){if(e.name!=='AbortError')$('share-status').textContent='共有できませんでした。「PNGを保存」から画像を保存し、共有先のアプリで添付してください。';}
  finally{sharing=false;$('share').disabled=false;}
 }
 $('share').addEventListener('click',shareImage);
-$('download').addEventListener('click',()=>{if(resultBlob)$('download').download=newFilename();});
+$('download').addEventListener('click',event=>{if(isSheet()&&(sheetRefreshRequested||sheetRefreshRunning)){event.preventDefault();return;}if(resultBlob)$('download').download=newFilename();});
 if(document.modelContext?.registerTool){
  for(const tool of [
  {name:'read_stitch_state',title:'合成状態を確認',description:'現在の画像の枚数と、合成結果の状態を確認します。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true},execute:()=>({selectedImages:images.length,hasResult:!!resultBlob,mode:info?.mode??null,order:info?.order.map(i=>i+1)??[],shifts:info?.joins.map(j=>j.d)??[],characters:batchResults.length,outputMode})},
