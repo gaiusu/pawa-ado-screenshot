@@ -13,12 +13,26 @@ async function withImage(blob,fn){
  const url=URL.createObjectURL(blob),img=new Image();
  try{img.src=url;await img.decode();return await fn(img);}finally{img.src='';URL.revokeObjectURL(url);}
 }
+function hasFullAbilityViewport(img){
+ // A short stitched image can still be landscape. Check the three gold tabs
+ // at their full-screen positions before cropping, rather than using aspect alone.
+ const sample=normalize(img);
+ try{
+  const g=sample.getContext('2d');
+  const goldTabs=[1320,1610,1900].filter(x=>{
+   const data=g.getImageData(x-35,233,70,19).data;let gold=0;
+   for(let i=0;i<data.length;i+=4)if(data[i]>170&&data[i+1]>90&&data[i+2]<120)gold++;
+   return gold/(data.length/4)>.1;
+  }).length;
+  return goldTabs>=2;
+ }finally{release(sample);}
+}
 // Copy only the photographed content. Party mode never aligns or joins lists.
 export async function readPartyShot(file){
  if(file.size>20*1024*1024||!/^image\/(png|jpeg|webp)$/.test(file.type))throw Error('20MB以下のPNG・JPEG・WebPを選んでください。');
  return withImage(file,async img=>{
   const w=img.naturalWidth,h=img.naturalHeight;if(w*h>24000000)throw Error('2400万画素以下の画像を選んでください。');
-  const full=w/h>1.55;let x=0,y=0,width=w,height=h;
+  const full=w/h>1.55&&w/h<=3.1&&h>=360&&hasFullAbilityViewport(img);let x=0,y=0,width=w,height=h;
   if(full){const scale=h/1080;x=Math.round((427-1260)*scale+w/2);y=Math.round(64*scale);width=Math.round(1668*scale);height=Math.round(945*scale);}
   if(x<0||y<0||x+width>w||y+height>h)throw Error('能力データ枠を切り取れません。ゲームの横向きスクショを選んでください。');
   const canvas=makeCanvas(width,height);

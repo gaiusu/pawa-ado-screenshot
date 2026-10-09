@@ -1,5 +1,5 @@
 import {analyzeMany,composeMany,profiles,maxShift} from './core.js?v=20261009-scroll-background';
-import {readCanvas,readPartyShot,release,canvasBlob,composeSheet,pause} from './batch.js?v=20261009-scroll-background';
+import {readCanvas,readPartyShot,release,canvasBlob,composeSheet,pause} from './batch.js?v=20261009-audit';
 const $=id=>document.getElementById(id);
 let images=[],info=null,resultBlob=null,resultURL=null,busy=false,revision=0,sharing=false;
 let activeCanvases=[],batchResults=[],controller=null,resultLabel='能力データ';
@@ -85,7 +85,8 @@ function showAdjustment(){
  $('seam').min=p.top+j.d+1;$('seam').max=p.bottom-1;j.seam=Math.max(Number($('seam').min),Math.min(Number($('seam').max),j.seam));$('seam').value=j.seam;$('seam-value').textContent=j.seam+' px';
 }
 async function displayOutput(output,label){
- const current=++revision,blob=await canvasBlob(output);checkCancelled();if(current!==revision)return false;
+ const current=++revision;$('save-area').hidden=true;
+ const blob=await canvasBlob(output);checkCancelled();if(current!==revision)return false;
  if(resultURL)URL.revokeObjectURL(resultURL);resultLabel=label;resultBlob=blob;resultURL=URL.createObjectURL(blob);
  $('preview').src=resultURL;$('download').href=resultURL;$('download').download=newFilename();
  $('empty').hidden=true;$('preview-wrap').hidden=false;$('save-area').hidden=false;$('dimensions').textContent=output.width+' × '+output.height+' px';
@@ -94,7 +95,7 @@ async function displayOutput(output,label){
 }
 async function render(){
  if(!info)return;const scale=Math.min(2,...images.map(im=>im.height/1080)),output=composeMany(activeCanvases,info,scale);
- try{await displayOutput(output,profiles[info.mode].name);$('adjust').hidden=false;showAdjustment();}finally{release(output);}
+ try{if(await displayOutput(output,profiles[info.mode].name)){$('adjust').hidden=false;showAdjustment();}}finally{release(output);}
 }
 function showBatch(results){
  $('batch-area').hidden=false;$('batch-results').replaceChildren();
