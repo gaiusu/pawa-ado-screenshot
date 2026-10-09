@@ -1,11 +1,10 @@
 import {analyzeMany,composeMany,profiles,maxShift} from './core.js?v=20261009-scroll-background';
-import {readCanvas,readPartyShot,readFormation,release,canvasBlob,composeSheet,pause} from './batch.js?v=20261010-formation';
+import {readCanvas,readPartyShot,release,canvasBlob,composeSheet,pause} from './batch.js?v=20261010-no-formation';
 const $=id=>document.getElementById(id);
 let images=[],info=null,resultBlob=null,resultURL=null,busy=false,revision=0,sharing=false;
 let activeCanvases=[],batchResults=[],controller=null,resultLabel='能力データ';
 let outputMode='single';
 let memoVersion=0,memoTimer=null,sheetRefreshRequested=false,sheetRefreshRunning=false;
-let formation=null;
 const imageSets={single:[],sheet:[]};
 const modeTabs=[...document.querySelectorAll('[role="tab"][data-output-mode]')];
 const isSheet=()=>outputMode==='sheet';
@@ -22,7 +21,7 @@ function newFilename(label=resultLabel){
 function status(text,type=''){ $('status').textContent=text;$('status').className='status '+type; }
 function clearResult(){clearTimeout(memoTimer);sheetRefreshRequested=false;activeCanvases.forEach(release);activeCanvases=[];batchResults.forEach(r=>URL.revokeObjectURL(r.url));batchResults=[];$('batch-results').replaceChildren();$('batch-area').hidden=true;revision++;info=null;resultBlob=null;if(resultURL)URL.revokeObjectURL(resultURL);resultURL=null;$('preview').removeAttribute('src');$('download').removeAttribute('href');$('share-status').textContent='';$('preview-wrap').hidden=true;$('save-area').hidden=true;$('adjust').hidden=true;$('empty').hidden=false;$('dimensions').textContent='PNG';}
 function setBusy(b){busy=b;document.body.classList.toggle('busy',b);$('combine').disabled=b||images.length<minimumFiles()||images.length>fileLimit();
- for(const id of ['files','mode','clear-images','formation-file','formation-remove'])$(id).disabled=b;
+ for(const id of ['files','mode','clear-images'])$(id).disabled=b;
  modeTabs.forEach(tab=>tab.disabled=b);
  document.querySelectorAll('.remove-image,.include-result,.slot-select,#adjust input,#adjust select,#adjust button').forEach(el=>el.disabled=b);
  $('cancel').hidden=!b;$('cancel').disabled=false;
@@ -40,7 +39,7 @@ function showSettings(){
  $('limit-hint').textContent=sheet?'1〜6枚・1キャラにつき1枚':'2〜10枚';
  $('scope').textContent=sheet?'写っている内容だけを切り取り・配置します。特殊能力欄の結合、キャラの自動分類、重複の除去は行いません。全項目を載せたい場合は「1枚の画像を作る」で先につないだ画像を選んでください。':'このゲームの横向き「能力データ」画面向けの試作版です。特殊能力・サクセスデータに対応。別画面や、重なりのない画像は合成できません。';
  $('empty-title').textContent=sheet?'6枚を1枚に':'全項目をまとめて見やすく';
- $('empty-help').textContent=sheet?'上部に自由記入欄と任意の編成画像、その下にスクショを横2列×縦3段で配置します。':'重複を合わせて、外側の背景をトリミング。文字や数値は元画像をそのまま使います。';
+ $('empty-help').textContent=sheet?'上部に自由記入欄、その下にスクショを横2列×縦3段で配置します。':'重複を合わせて、外側の背景をトリミング。文字や数値は元画像をそのまま使います。';
  $('save-help').textContent=sheet?'切り取り範囲と配置番号の対応を確認してから保存してください。':'最終行まで入っているか確認してから保存してください。';
  showImages();setBusy(false);selectionStatus();
 }
@@ -120,7 +119,7 @@ async function renderSheet(){
  const included=batchResults.filter(r=>r.included);
  if(!included.length){revision++;if(resultURL)URL.revokeObjectURL(resultURL);resultURL=null;resultBlob=null;$('preview').removeAttribute('src');$('download').removeAttribute('href');$('preview-wrap').hidden=true;$('save-area').hidden=true;$('empty').hidden=false;$('dimensions').textContent='PNG';status('シートに含めるキャラを1人以上選んでください。');return;}
  const version=memoVersion;
- const output=await composeSheet(included,{notes:[$('memo-1').value,$('memo-2').value],formation},checkCancelled);
+ const output=await composeSheet(included,{notes:[$('memo-1').value,$('memo-2').value]},checkCancelled);
  try{if(version!==memoVersion)return;if(await displayOutput(output,'パーティシート'))status(included.length+'枚のスクショを配置しました。','success');}finally{release(output);}
 }
 async function combine(){
@@ -189,22 +188,6 @@ function updateMemo(){
 }
 $('memo-1').addEventListener('input',updateMemo);
 $('memo-2').addEventListener('input',updateMemo);
-function showFormation(){
- $('formation-preview-wrap').hidden=!formation;
- if(formation){$('formation-preview').src=formation.url;$('formation-name').textContent=formation.name;}
- else{$('formation-preview').removeAttribute('src');$('formation-name').textContent='';}
-}
-async function selectFormation(file){
- if(busy||!isSheet()||!file)return;controller=new AbortController();setBusy(true);$('formation-status').textContent='編成画像を読み込んでいます…';
- try{
-  const next=await readFormation(file);checkCancelled();const url=URL.createObjectURL(next.blob);
-  if(formation)URL.revokeObjectURL(formation.url);formation={...next,url,name:file.name};showFormation();updateMemo();
-  $('formation-status').textContent='左の編成部分を切り取りました。';
- }catch(e){$('formation-status').textContent=e.name==='AbortError'?'編成画像の読み込みを中止しました。':e.message;}
- finally{setBusy(false);$('formation-file').value='';if(sheetRefreshRequested&&batchResults.length)refreshSheet();}
-}
-$('formation-file').addEventListener('change',e=>selectFormation(e.target.files[0]));
-$('formation-remove').addEventListener('click',()=>{if(busy||!formation)return;URL.revokeObjectURL(formation.url);formation=null;showFormation();$('formation-status').textContent='';updateMemo();});
 $('cancel').addEventListener('click',()=>{controller?.abort();$('cancel').disabled=true;status('中止しています…');});
 $('join').addEventListener('change',showAdjustment);
 $('shift').addEventListener('input',updateAdjustment);$('seam').addEventListener('input',updateAdjustment);

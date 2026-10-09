@@ -39,35 +39,13 @@ export async function readPartyShot(file){
   try{canvas.getContext('2d').drawImage(img,x,y,width,height,0,0,width,height);return {blob:await canvasBlob(canvas),width,height,full};}finally{release(canvas);}
  });
 }
-export async function readFormation(file){
- if(file.size>20*1024*1024||!/^image\/(png|jpeg|webp)$/.test(file.type))throw Error('20MB以下のPNG・JPEG・WebPを選んでください。');
- return withImage(file,async img=>{
-  const w=img.naturalWidth,h=img.naturalHeight;
-  if(w*h>24000000)throw Error('2400万画素以下の画像を選んでください。');
-  if(w/h<1.55||w/h>3.1||h<360)throw Error('パーティ編成画面の横向きスクショを選んでください。');
-  const sample=normalize(img);
-  try{
-   // The blue, green and red position headings identify the formation screen.
-   const tests=[{x:540,match:(r,g,b)=>r<100&&g>60&&b>180},{x:780,match:(r,g,b)=>r<110&&g>140&&b<120},{x:1020,match:(r,g,b)=>r>180&&g<120&&b<170}];
-   const g=sample.getContext('2d');
-   if(!tests.every(({x,match})=>{const data=g.getImageData(x-60,320,120,28).data;let count=0;for(let i=0;i<data.length;i+=4)if(match(data[i],data[i+1],data[i+2]))count++;return count/(data.length/4)>.25;}))throw Error('パーティ編成画面を確認できません。切り取り前のスクショを選んでください。');
-  }finally{release(sample);}
-  const scale=h/1080,x=Math.round((389-1260)*scale+w/2),y=Math.round(205*scale),width=Math.round(777*scale),height=Math.round(756*scale);
-  if(x<0||y<0||x+width>w||y+height>h)throw Error('編成部分を切り取れません。切り取り前の横向きスクショを選んでください。');
-  const canvas=makeCanvas(width,height);
-  try{canvas.getContext('2d').drawImage(img,x,y,width,height,0,0,width,height);return {blob:await canvasBlob(canvas),width,height};}finally{release(canvas);}
- });
-}
 export function sheetLayout(results,options={}){
  const sizes=results.map((r,i)=>({slot:r.slot||i+1,width:r.width,height:r.height}));
  const cols=2,margin=24,gap=24,heading=0,cellWidth=Math.max(...results.map(r=>r.width)),headerHeight=264;
  const heights=[320,320,320];sizes.forEach(r=>{const row=Math.floor((r.slot-1)/2);heights[row]=Math.max(heights[row],r.height+heading);});
  const width=margin*2+cellWidth*2+gap,height=margin*2+headerHeight+gap+heights.reduce((a,b)=>a+b,0)+gap*2;
  if(width*height>64000000||width>16384||height>16384)throw Error('シートが大きすぎます。解像度を抑えて撮影したスクショを使用してください。');
- let formationBox=null;const headerWidth=width-margin*2;
- if(options.formation){const f=options.formation,scale=Math.min(1,(headerHeight-24)/f.height,headerWidth*.3/f.width),fw=Math.max(1,Math.round(f.width*scale)),fh=Math.max(1,Math.round(f.height*scale));formationBox={x:width-margin-fw,y:margin+Math.floor((headerHeight-fh)/2),width:fw,height:fh};}
- const noteWidth=headerWidth-(formationBox?formationBox.width+gap:0);
- return {cols,margin,gap,cellWidth,heading,heights,headerHeight,width,height,sizes,formationBox,noteWidth};
+ return {cols,margin,gap,cellWidth,heading,heights,headerHeight,width,height,sizes};
 }
 let noteFontPromise;
 async function loadNoteFont(){
@@ -82,11 +60,10 @@ export async function composeSheet(results,options={},check=()=>{}){
  const l=sheetLayout(results,options),canvas=makeCanvas(l.width,l.height),g=canvas.getContext('2d');
  try{
   g.fillStyle='#101622';g.fillRect(0,0,l.width,l.height);
-  const noteX=l.margin,noteWidth=l.noteWidth;g.fillStyle='#192231';g.fillRect(noteX,l.margin,l.width-l.margin*2,l.headerHeight);
+  const noteX=l.margin,noteWidth=l.width-l.margin*2;g.fillStyle='#192231';g.fillRect(noteX,l.margin,noteWidth,l.headerHeight);
   g.fillStyle='#f4f7fb';const notes=(options.notes||[]).slice(0,2);
   if(notes.some(text=>text)){await loadNoteFont();check();}
   notes.forEach((text,i)=>{let size=72;do{g.font=`400 ${size}px "Party Rounded", "Hiragino Maru Gothic ProN", "Yu Gothic", Meiryo, sans-serif`;if(g.measureText(text).width<=noteWidth-64)break;size--;}while(size>8);g.fillText(text,noteX+32,l.margin+96+i*96);});
-  if(l.formationBox)await withImage(options.formation.blob,img=>{check();const box=l.formationBox;g.imageSmoothingQuality='high';g.drawImage(img,box.x,box.y,box.width,box.height);});
   for(let slot=1;slot<=6;slot++){
    check();const r=results.find((r,i)=>(r.slot||i+1)===slot),row=Math.floor((slot-1)/2),x=l.margin+((slot-1)%2)*(l.cellWidth+l.gap),y=l.margin+l.headerHeight+l.gap+l.heights.slice(0,row).reduce((a,b)=>a+b+l.gap,0);
    g.fillStyle='#fff4df';g.fillRect(x,y,l.cellWidth,l.heights[row]);
