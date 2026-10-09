@@ -18,3 +18,5 @@ header{gap:20px}.brand{margin:0;letter-spacing:normal;line-height:1.5;min-width:
 #tool-panel[aria-labelledby=tab-sheet] .remove-image{margin:0 5px 5px;width:calc(100% - 10px);padding:6px;font-size:12px}
 #sheet-options input[type=text]+label+input[type=text]{margin-top:12px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px!important;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.private{font-size:12px;line-height:1.7;max-width:330px;flex-shrink:1}
+@media(max-width:850px){.private{max-width:calc(100% - 38px)}}
