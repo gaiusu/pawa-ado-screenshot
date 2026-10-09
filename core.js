@@ -81,7 +81,7 @@ function matchPair(a,b,p,thumbA=null,thumbB=null){
  const seam=chooseSeam(first,last,best.d,p);
  return {...best,seam,confidence:best.score<24?'high':'check',originalD:best.d,originalSeam:seam};
 }
-export async function analyzeMany(canvases,mode='auto',onProgress=()=>{}){
+export async function analyzeMany(canvases,mode='auto',onProgress=()=>{},options={}){
  const n=canvases.length;
  if(n<2||n>10)throw Error('スクショを2〜10枚選んでください。');
  const data=canvases.map(pixels),ma=mode==='auto'?detectMode(data[0]):mode,p=profiles[ma];
@@ -94,13 +94,14 @@ export async function analyzeMany(canvases,mode='auto',onProgress=()=>{}){
  const edges=Array.from({length:n},()=>Array(n).fill(null));let checked=0;
  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){
   const match=matchPair(data[i],data[j],p,thumbs[i],thumbs[j]);
-  if(match?.duplicate)throw Error(`画像${i+1}と画像${j+1}は同じ位置の画像のようです。どちらかを削除してください。`);
-  if(match){const from=match.order?j:i,to=match.order?i:j;edges[from][to]=match;}
+  if(match?.duplicate&&!options.partial)throw Error(`画像${i+1}と画像${j+1}は同じ位置の画像のようです。どちらかを削除してください。`);
+  if(match&&!match.duplicate&&(!options.partial||match.confidence==='high')){const from=match.order?j:i,to=match.order?i:j;edges[from][to]=match;}
   onProgress(++checked,n*(n-1)/2);await new Promise(r=>setTimeout(r,0));
  }
- // Find a complete top-to-bottom chain; never omit an unmatched screenshot.
+ // Single mode requires every image. Batch mode can omit disconnected images,
+ // but only accepts a chain whose scroll bar reaches both ends of the list.
  const size=1<<n,cost=Array.from({length:size},()=>Array(n).fill(Infinity)),prev=Array.from({length:size},()=>Array(n).fill(-1));
- for(let i=0;i<n;i++)cost[1<<i][i]=0;
+ for(let i=0;i<n;i++)if(!options.partial||(thumbs[i]&&thumbs[i].top<=p.top+20))cost[1<<i][i]=0;
  for(let mask=1;mask<size;mask++)for(let i=0;i<n;i++)if(Number.isFinite(cost[mask][i])){
   for(let j=0;j<n;j++)if(!(mask&(1<<j))&&edges[i][j]){
    const next=mask|(1<<j),value=cost[mask][i]+edges[i][j].score;
@@ -108,11 +109,22 @@ export async function analyzeMany(canvases,mode='auto',onProgress=()=>{}){
   }
  }
  let mask=size-1,last=cost[mask].indexOf(Math.min(...cost[mask]));
+ if(options.partial){
+  let count=0,best=Infinity;mask=0;last=-1;
+  for(let candidate=1;candidate<size;candidate++){
+   const length=candidate.toString(2).replaceAll('0','').length;
+   if(length<2||length<count)continue;
+   for(let end=0;end<n;end++)if(thumbs[end]&&thumbs[end].top+thumbs[end].height>=p.bottom-20&&Number.isFinite(cost[candidate][end])){
+    if(length>count||cost[candidate][end]<best){mask=candidate;last=end;count=length;best=cost[candidate][end];}
+   }
+  }
+  if(last<0)throw Error('上端から最終行までのつながりを確認できません。途中の画像や、一覧のいちばん上・下の画像を追加してください。');
+ }
  if(!Number.isFinite(cost[mask][last]))throw Error('すべての画像をつなぐ重なりが見つかりませんでした。途中のスクショを追加し、隣り合う画像で同じ項目が1〜2段重なるようにしてください。');
  const order=[];
  while(last!==-1){order.unshift(last);const before=prev[mask][last];mask^=1<<last;last=before;}
  const joins=order.slice(1).map((to,i)=>({...edges[order[i]][to]}));
- return {mode:ma,order,joins,confidence:joins.some(j=>j.confidence==='check')?'check':'high'};
+ return {mode:ma,order,joins,excluded:Array.from({length:n},(_,i)=>i).filter(i=>!order.includes(i)),confidence:joins.some(j=>j.confidence==='check')?'check':'high'};
 }
 export function composeMany(canvases,info,scale=1){
  const base=canvases[info.order[0]],total=info.joins.reduce((sum,j)=>sum+j.d,0);
@@ -137,5 +149,5 @@ export function composeMany(canvases,info,scale=1){
  const start=info.mode==='abilities'?492:286,bg=base.getContext('2d').getImageData(2039,600,1,1).data;
  g.fillStyle=`rgb(${bg[0]},${bg[1]},${bg[2]})`;g.fillRect(2018-427,start-64,21,816-start+total);
  if(scale===1)return c;
- const out=makeCanvas(Math.round(c.width*scale),Math.round(c.height*scale));out.getContext('2d').drawImage(c,0,0,out.width,out.height);return out;
+ const out=makeCanvas(Math.round(c.width*scale),Math.round(c.height*scale));out.getContext('2d').drawImage(c,0,0,out.width,out.height);c.width=1;c.height=1;return out;
 }
