@@ -27,11 +27,19 @@ export async function readPartyShot(file){
 }
 export function sheetLayout(results,options={}){
  const sizes=results.map((r,i)=>({slot:r.slot||i+1,width:r.width,height:r.height}));
- const cols=2,margin=24,gap=24,heading=0,cellWidth=Math.max(...results.map(r=>r.width)),headerHeight=176;
+ const cols=2,margin=24,gap=24,heading=0,cellWidth=Math.max(...results.map(r=>r.width)),headerHeight=264;
  const heights=[320,320,320];sizes.forEach(r=>{const row=Math.floor((r.slot-1)/2);heights[row]=Math.max(heights[row],r.height+heading);});
  const width=margin*2+cellWidth*2+gap,height=margin*2+headerHeight+gap+heights.reduce((a,b)=>a+b,0)+gap*2;
  if(width*height>64000000||width>16384||height>16384)throw Error('シートが大きすぎます。解像度を抑えて撮影したスクショを使用してください。');
  return {cols,margin,gap,cellWidth,heading,heights,headerHeight,width,height,sizes};
+}
+let noteFontPromise;
+async function loadNoteFont(){
+ if(!noteFontPromise)noteFontPromise=(async()=>{
+  try{const face=new FontFace('Party Rounded',`url("${new URL('./fonts/MPLUSRounded1c-Regular.woff2',import.meta.url)}")`,{weight:'400'});document.fonts.add(await face.load());}
+  catch{ /* Keep notes available with the rounded system font fallback. */ }
+ })();
+ await noteFontPromise;
 }
 export async function composeSheet(results,options={},check=()=>{}){
  if(!results.length)throw Error('シートに含めるキャラを1人以上選んでください。');
@@ -40,7 +48,8 @@ export async function composeSheet(results,options={},check=()=>{}){
   g.fillStyle='#101622';g.fillRect(0,0,l.width,l.height);
   const noteX=l.margin,noteWidth=l.width-l.margin*2;g.fillStyle='#192231';g.fillRect(noteX,l.margin,noteWidth,l.headerHeight);
   g.fillStyle='#f4f7fb';const notes=(options.notes||[]).slice(0,2);
-  notes.forEach((text,i)=>{let size=48;do{g.font=`500 ${size}px system-ui,sans-serif`;if(g.measureText(text).width<=noteWidth-64)break;size--;}while(size>8);g.fillText(text,noteX+32,l.margin+64+i*64);});
+  if(notes.some(text=>text)){await loadNoteFont();check();}
+  notes.forEach((text,i)=>{let size=72;do{g.font=`400 ${size}px "Party Rounded", "Hiragino Maru Gothic ProN", "Yu Gothic", Meiryo, sans-serif`;if(g.measureText(text).width<=noteWidth-64)break;size--;}while(size>8);g.fillText(text,noteX+32,l.margin+96+i*96);});
   for(let slot=1;slot<=6;slot++){
    check();const r=results.find((r,i)=>(r.slot||i+1)===slot),row=Math.floor((slot-1)/2),x=l.margin+((slot-1)%2)*(l.cellWidth+l.gap),y=l.margin+l.headerHeight+l.gap+l.heights.slice(0,row).reduce((a,b)=>a+b+l.gap,0);
    g.fillStyle='#fff4df';g.fillRect(x,y,l.cellWidth,l.heights[row]);
