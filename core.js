@@ -146,8 +146,10 @@ export function composeMany(canvases,info,scale=1){
   g.drawImage(canvases[info.order[i+1]],1163,seam-join.d,883,822-seam+join.d,736,offset+seam-64,883,822-seam+join.d);
   offset+=join.d;
  });
- const start=info.mode==='abilities'?492:286,bg=base.getContext('2d').getImageData(2039,600,1,1).data;
- g.fillStyle=`rgb(${bg[0]},${bg[1]},${bg[2]})`;g.fillRect(2018-427,start-64,21,816-start+total);
+ // The list's right edge may touch a blue or gold ability card. Reuse the
+ // clean gutter background instead of spreading that card's color vertically.
+ const start=info.mode==='abilities'?492:286;
+ g.fillStyle=`rgb(${color.join(',')})`;g.fillRect(2018-427,start-64,21,816-start+total);
  if(scale===1)return c;
  const out=makeCanvas(Math.round(c.width*scale),Math.round(c.height*scale));out.getContext('2d').drawImage(c,0,0,out.width,out.height);c.width=1;c.height=1;return out;
 }

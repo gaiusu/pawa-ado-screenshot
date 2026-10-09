@@ -1,4 +1,4 @@
-import {normalize,makeCanvas} from './core.js?v=20261008-local';
+import {normalize,makeCanvas} from './core.js?v=20261009-scroll-background';
 export const pause=()=>new Promise(resolve=>setTimeout(resolve,0));
 export function release(canvas){if(canvas){canvas.width=1;canvas.height=1;}}
 export function canvasBlob(canvas,type='image/png',quality){return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(Error('画像を保存用に変換できませんでした。')),type,quality));}
