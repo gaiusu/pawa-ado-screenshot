@@ -5,6 +5,7 @@ let images=[],info=null,resultBlob=null,resultURL=null,busy=false,revision=0,sha
 let activeCanvases=[],batchResults=[],controller=null,resultLabel='能力データ';
 let outputMode='single';
 let memoVersion=0,memoTimer=null,sheetRefreshRequested=false,sheetRefreshRunning=false;
+let scrollToSaveRequested=false;
 const imageSets={single:[],sheet:[]};
 const modeTabs=[...document.querySelectorAll('[role="tab"][data-output-mode]')];
 const isSheet=()=>outputMode==='sheet';
@@ -19,7 +20,7 @@ function newFilename(label=resultLabel){
  return `${label}_${date}_${time}_${id}.png`;
 }
 function status(text,type=''){ $('status').textContent=text;$('status').className='status '+type; }
-function clearResult(){clearTimeout(memoTimer);sheetRefreshRequested=false;activeCanvases.forEach(release);activeCanvases=[];batchResults.forEach(r=>URL.revokeObjectURL(r.url));batchResults=[];$('batch-results').replaceChildren();$('batch-area').hidden=true;revision++;info=null;resultBlob=null;if(resultURL)URL.revokeObjectURL(resultURL);resultURL=null;$('preview').removeAttribute('src');$('download').removeAttribute('href');$('share-status').textContent='';$('preview-wrap').hidden=true;$('save-area').hidden=true;$('adjust').hidden=true;$('empty').hidden=false;$('dimensions').textContent='PNG';}
+function clearResult(){clearTimeout(memoTimer);scrollToSaveRequested=false;sheetRefreshRequested=false;activeCanvases.forEach(release);activeCanvases=[];batchResults.forEach(r=>URL.revokeObjectURL(r.url));batchResults=[];$('batch-results').replaceChildren();$('batch-area').hidden=true;revision++;info=null;resultBlob=null;if(resultURL)URL.revokeObjectURL(resultURL);resultURL=null;$('preview').removeAttribute('src');$('download').removeAttribute('href');$('share-status').textContent='';$('preview-wrap').hidden=true;$('save-area').hidden=true;$('adjust').hidden=true;$('empty').hidden=false;$('dimensions').textContent='PNG';}
 function setBusy(b){busy=b;document.body.classList.toggle('busy',b);$('combine').disabled=b||images.length<minimumFiles()||images.length>fileLimit();
  for(const id of ['files','mode','clear-images'])$(id).disabled=b;
  modeTabs.forEach(tab=>tab.disabled=b);
@@ -30,6 +31,17 @@ function selectionStatus(){
  if(images.length>fileLimit()){status('選択できるのは'+fileLimit()+'枚までです。不要な画像を削除してください。','error');return;}
  if(images.length>=minimumFiles()){status(images.length+'枚を選択しました。'+(isSheet()?'「パーティシートを作る」を押してください。':'「1枚につなぐ」を押してください。'));return;}
  status(isSheet()?'各キャラのスクショを1枚ずつ、最大6枚選んでください。':images.length?'もう1枚以上のスクショを追加してください。':'同じ項目が1〜2段重なるスクショを、2枚以上選んでください。');
+}
+async function scrollToSave(){
+ if(!scrollToSaveRequested||busy||sheetRefreshRequested||!resultURL||$('save-area').hidden)return;
+ const url=resultURL;
+ // Wait for the full preview height before finding the save button's position.
+ try{await $('preview').decode();}catch{return;}
+ requestAnimationFrame(()=>{
+  if(!scrollToSaveRequested||busy||sheetRefreshRequested||resultURL!==url||$('save-area').hidden)return;
+  scrollToSaveRequested=false;
+  $('download').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'instant':'smooth',block:'center'});
+ });
 }
 function showSettings(){
  const sheet=isSheet();
@@ -124,7 +136,7 @@ async function renderSheet(){
 }
 async function combine(){
  if(busy||images.length<minimumFiles()||images.length>fileLimit())throw Error('画像の枚数を確認してください。');
- clearResult();controller=new AbortController();setBusy(true);status('画像を確認しています…');await pause();
+ clearResult();scrollToSaveRequested=true;controller=new AbortController();setBusy(true);status('画像を確認しています…');await pause();
  try{
   if(isSheet()){
    checkCancelled();batchResults=images.map((item,index)=>({blob:item.partyBlob,width:item.width,height:item.height,indices:[index],included:true}));
@@ -136,7 +148,7 @@ async function combine(){
   $('join').replaceChildren(...info.joins.map((j,i)=>{const option=document.createElement('option');option.value=i;option.textContent='つなぎ目'+(i+1)+'（画像'+(info.order[i]+1)+' → 画像'+(info.order[i+1]+1)+'）';return option;}));
   await render();status(images.length+'枚の'+profiles[info.mode].name+'を合成しました（画像'+info.order.map(i=>i+1).join(' → ')+'）。'+(info.confidence==='check'?'つなぎ目を拡大して確認してください。':'最終行まで入っているか確認してください。'),'success');
   return {mode:info.mode,order:info.order.map(i=>i+1),shifts:info.joins.map(j=>j.d),confidence:info.confidence};
- }catch(e){clearResult();status(e.name==='AbortError'?'処理を中止しました。選択した画像は残っています。':e.message,'error');throw e;}finally{setBusy(false);if(sheetRefreshRequested&&batchResults.length)refreshSheet();}
+ }catch(e){clearResult();status(e.name==='AbortError'?'処理を中止しました。選択した画像は残っています。':e.message,'error');throw e;}finally{setBusy(false);if(sheetRefreshRequested&&batchResults.length)refreshSheet();else scrollToSave();}
 }
 async function adjust(delta,seam){
  const j=activeJoin();if(!j)throw Error('先に合成してください。');const p=profiles[info.mode];
@@ -178,7 +190,7 @@ async function refreshSheet(){
  clearTimeout(memoTimer);sheetRefreshRunning=true;controller=new AbortController();setBusy(true);
  try{do{sheetRefreshRequested=false;await renderSheet();}while(sheetRefreshRequested&&!controller.signal.aborted);}
  catch(e){sheetRefreshRequested=false;status(e.name==='AbortError'?'更新を中止しました。':e.message,'error');}
- finally{sheetRefreshRunning=false;setBusy(false);}
+ finally{sheetRefreshRunning=false;setBusy(false);scrollToSave();}
 }
 function updateMemo(){
  memoVersion++;revision++;clearTimeout(memoTimer);
