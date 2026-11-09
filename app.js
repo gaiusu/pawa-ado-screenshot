@@ -144,9 +144,19 @@ async function combine(){
    return {characters:batchResults.length,order:batchResults.map(r=>r.indices[0]+1)};
   }
   for(const item of images){checkCancelled();if(item.error)throw Error(item.error);activeCanvases.push((await readCanvas(item.file)).canvas);await pause();}
-  info=await analyzeMany(activeCanvases,$('mode').value,(done,total)=>{checkCancelled();status('画像の順番と重なりを確認しています… '+done+' / '+total);});checkCancelled();
+  const progress=(done,total)=>{checkCancelled();status('画像の順番と重なりを確認しています… '+done+' / '+total);};
+  let modeCorrected=false;
+  try{info=await analyzeMany(activeCanvases,$('mode').value,progress);}
+  catch(error){
+   checkCancelled();if($('mode').value==='auto')throw error;
+   // A previous manual tab choice can remain selected for the next character.
+   // Correct it only when automatic detection validates the entire image chain.
+   try{info=await analyzeMany(activeCanvases,'auto',progress);}catch{checkCancelled();throw error;}
+   $('mode').value='auto';modeCorrected=true;
+  }
+  checkCancelled();
   $('join').replaceChildren(...info.joins.map((j,i)=>{const option=document.createElement('option');option.value=i;option.textContent='つなぎ目'+(i+1)+'（画像'+(info.order[i]+1)+' → 画像'+(info.order[i+1]+1)+'）';return option;}));
-  await render();status(images.length+'枚の'+profiles[info.mode].name+'を合成しました（画像'+info.order.map(i=>i+1).join(' → ')+'）。'+(info.confidence==='check'?'つなぎ目を拡大して確認してください。':'最終行まで入っているか確認してください。'),'success');
+  await render();status(images.length+'枚の'+profiles[info.mode].name+'を合成しました（画像'+info.order.map(i=>i+1).join(' → ')+'）。'+(modeCorrected?'画像に合わせて画面の種類を自動で判別しました。':'')+(info.confidence==='check'?'つなぎ目を拡大して確認してください。':'最終行まで入っているか確認してください。'),'success');
   return {mode:info.mode,order:info.order.map(i=>i+1),shifts:info.joins.map(j=>j.d),confidence:info.confidence};
  }catch(e){clearResult();status(e.name==='AbortError'?'処理を中止しました。選択した画像は残っています。':e.message,'error');throw e;}finally{setBusy(false);if(sheetRefreshRequested&&batchResults.length)refreshSheet();else scrollToSave();}
 }
