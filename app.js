@@ -1,5 +1,5 @@
-import {analyzeMany,composeMany,profiles,maxShift} from './core.js?v=20261009-scroll-background';
-import {readCanvas,readPartyShot,release,canvasBlob,composeSheet,pause} from './batch.js?v=20261010-no-formation';
+import {analyzeMany,composeMany,profiles,maxShift} from './core.js?v=20261109-current';
+import {readCanvas,readPartyShot,release,canvasBlob,composeSheet,pause} from './batch.js?v=20261109-current';
 const $=id=>document.getElementById(id);
 let images=[],info=null,resultBlob=null,resultURL=null,busy=false,revision=0,sharing=false;
 let activeCanvases=[],batchResults=[],controller=null,resultLabel='能力データ';
